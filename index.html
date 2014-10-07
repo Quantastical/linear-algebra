@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Javascript Linear Algebra</title>
+		
+		<!-- COMMON FUNCTIONS -->
+		
+		<script type="text/javascript">
+			function isNumeric( n )
+			{
+			  return !isNaN( parseFloat( n ) ) && isFinite( n );
+			}
+			
+			Math.toDegrees = function( radians )
+			{
+				return radians * 180 / Math.PI;
+			};
+			
+			Math.toRadians = function( degrees )
+			{
+				return degrees * Math.PI / 180;
+			};
+			
+			Number.prototype.clamp = function( min, max )
+			{
+				return Math.min( Math.max( this, min ), max );
+			};
+		</script>
+		
+		
+		<!-- MATRIX OBJECT -->
+		
+		<script type="text/javascript">
+			function Matrix( a, b )
+			{
+				var elements = [ ];
+				if( a instanceof Array )
+				{
+					for( var i = 0; i < a.length; i++ )
+					{
+						if( a[ i ] instanceof Vector )
+						{
+							elements.push( a[ i ].x( ) );
+							elements.push( a[ i ].y( ) );
+						}
+						else
+						{
+							elements.push( a[ i ] );
+						}
+					}
+					
+					this.size = ( b instanceof Vector ) ? b : new Vector( 2, 2 );
+				}
+				else
+				{
+					if( a instanceof Vector )
+					{
+						elements.push( a.x( ) );
+						elements.push( a.y( ) );
+					}
+					
+					if( b instanceof Vector )
+					{
+						elements.push( b.x( ) );
+						elements.push( b.y( ) );
+					}
+					
+					this.size = new Vector( 2, 2 );
+				}
+				
+				this.elements = elements;
+			}
+			
+			Matrix.prototype.constructor = Matrix;
+			
+			Matrix.prototype.col = function( index )
+			{
+				var size = Math.sqrt( this.elements.length );
+				
+				if( index === undefined || size % 1 !== 0 )
+				{
+					return false;
+				}
+				
+				var column = [ ];
+				for( var i = index * size; i < index * size + size; i += 1 )
+				{
+					column.push( this.elements[ i ] );
+				}
+				
+				return new Vector( column );
+			};
+			
+			Matrix.prototype.row = function( index )
+			{
+				var size = Math.sqrt( this.elements.length );
+				
+				if( index === undefined || size % 1 !== 0 )
+				{
+					return false;
+				}
+				
+				var row = [ ];
+				for( var i = 0; i < this.elements.length; i += size )
+				{
+					row.push( this.elements[ i + index ] );
+				}	
+				return new Vector( row );
+			};
+			
+			Matrix.prototype.toString = function( )
+			{
+				var contents = "";
+				
+				for( var i = 0; i < this.size.y( ); i++ )
+				{
+					if( contents.length > 0 )
+					{
+						contents += ",";
+					}
+					
+					var row = this.elements.slice( i * this.size.y( ), i * this.size.y( ) + this.size.x( ) );
+					contents += "[" + row.join( "," ) + "]";
+				}
+				
+				return "Matrix(" + contents + ")";
+			};
+			
+			Matrix.add = function( A, B )
+			{
+				if( !( A instanceof Matrix ) || !( B instanceof Matrix ) )
+				{
+					return false;
+				}
+				
+				var elements = [ ];
+				for( var i = 0; i < A.elements.length; i++ )
+				{
+					elements.push( A.elements[ i ] + B.elements[ i ] );
+				}
+				
+				return new Matrix( elements );
+			};
+			
+			Matrix.multiply = function( A, a )
+			{
+				if( !(a instanceof Vector ) && isNaN( a ) )
+				{
+					return false;
+				}
+				
+				if( a instanceof Vector )
+				{
+					return Vector.add(
+						Vector.multiply( A.col( 0 ), a.x( ) ),
+						Vector.multiply( A.col( 1 ), a.y( ) )
+					);
+					return A.col( 0 ).multiply( a.x( ) ).add( A.col( 1 ).multiply( A.y( ) ) );
+				}
+				else
+				{
+					var scaled = [ ];
+					
+					for( var i = 0; i < A.elements.length; i++ )
+					{
+						scaled.push( A.elements[ i ] * s );
+					}
+				
+					return new Matrix( scaled );
+				}
+			};
+			
+			Matrix.rotation = function( angle )
+			{
+				var x = Vector.rotate( Vector.east( ), angle );
+				var y = Vector.rotate( Vector.north( ), angle );
+				
+				return new Matrix( x, y );
+			};
+			
+			Matrix.rotationDegrees = function( angle )
+			{
+				return Matrix.rotation( Math.toRadians( angle ) );
+			};
+			
+			Matrix.scale = function( s )
+			{
+				if( !isNumeric( s ) )
+				{
+					return false;
+				}
+				
+				var S = Matrix.identity( );
+				
+				for( var i = 0; i < S.size.x( ); i++ )
+				{
+					for( var j = 0; j < S.size.y( ); j++ )
+					{
+						if( i == j )
+						{
+							S.elements[ i + i * S.size.x( ) ] = s;
+						}
+					}
+				}
+				
+				return S;
+			};
+			
+			Matrix.subtract = function( A, B )
+			{
+				if( !( A instanceof Matrix ) || !( B instanceof Matrix ) )
+				{
+					return false;
+				}
+				
+				var elements = [ ];
+				for( var i = 0; i < A.elements.length; i++ )
+				{
+					elements.push( A.elements[ i ] - B.elements[ i ] );
+				}
+				
+				return new Matrix( elements );
+			};
+			
+			Matrix.translation = function( b, A )
+			{
+				if( !( b instanceof Vector ) )
+				{
+					return false;
+				}
+				
+				if( A === undefined )
+				{
+					A = Matrix.identity( );
+				}
+				
+				var elements = [ ];
+				
+				elements = elements.concat( A.col( 0 ).components );
+				elements.push( 0 );
+				elements = elements.concat( A.col( 1 ).components );
+				elements.push( 0 );
+				elements = elements.concat( b.components );
+				elements.push( 1 );
+				
+				return new Matrix( elements, new Vector( 3, 3 ) );
+			};
+			
+			Matrix.transpose = function( A )
+			{
+				var T = [ ];
+				
+				T = T.concat( A.row( 0 ).components );
+				T = T.concat( A.row( 1 ).components );
+				
+				return new Matrix( T );
+			}
+			
+			Matrix.identity = function( s )
+			{
+				s = s || 2;
+				
+				var elements = [ ];
+				for( var i = 0; i < s; i++ )
+				{
+					for( var j = 0; j < s; j++ )
+					{
+						elements.push( i == j ? 1 : 0 );
+					}
+				}
+				
+				return new Matrix( elements, new Vector( s, s ) );
+			};
+		</script>
+		
+		
+		<!-- VECTOR OBJECT -->
+		
+		<script type="text/javascript">
+			function Vector( x, y, z )
+			{
+				var components = [ ];
+				if( x instanceof Array )
+				{
+					components = x;
+				}
+				else
+				{
+					components = [ x || 0, y || 0 ];
+					
+					if( isNumeric( z ) )
+					{
+						components.push( z );
+					}
+				}
+				
+				this.components = components;
+				this.size = components.length;
+			};
+			
+			Vector.prototype.constructor = Vector;
+			
+			Vector.prototype.length = function( )
+			{
+				return Vector.magnitude( this );
+			};
+			
+			Vector.prototype.toString = function( )
+			{
+				return "Vector(" + this.components.join( "," ) + ")";
+			};
+			
+			Vector.prototype.unit = function( )
+			{
+				return Vector.normalize( this );
+			};
+			
+			Vector.prototype.x = function( )
+			{
+				return this.components[ 0 ];
+			};
+			
+			Vector.prototype.y = function( )
+			{
+				return this.components[ 1 ];
+			};
+			
+			Vector.prototype.z = function( )
+			{
+				return this.components[ 2 ];
+			};
+			
+			Vector.add = function( a, b )
+			{
+				if( !( a instanceof Vector ) )
+				{
+					return false;
+				}
+				
+				if( b instanceof Vector )
+				{
+					return new Vector( a.x( ) + b.x( ), a.y( ) + b.y( ) );
+				}
+				else
+				{
+					return new Vector( a.x( ) + b, a.y( ) + b );
+				}
+			};
+			
+			Vector.cross = function( a, b )
+			{
+				if( !( a instanceof Vector ) )
+				{
+					return false;
+				}
+				
+				if( b instanceof Vector )
+				{
+					var AB = Vector.subtract( a, b );
+				}
+				else
+				{
+					var AB = a;
+				}
+				
+				return new Vector( AB.y( ), -AB.x( ) );
+			};
+			
+			Vector.distance = function( a, b )
+			{
+				if( !( a instanceof Vector ) || !( b instanceof Vector ) )
+				{
+					return false;
+				}
+				
+				return Vector.magnitude( Vector.subtract( b, a ) );
+			};
+			
+			Vector.divide = function( a, b )
+			{
+				if( !( a instanceof Vector ) || !isNumeric( b ) )
+				{
+					return false;
+				}
+				
+				return Vector.scale( a, 1 / b );
+			};
+			
+			Vector.dot = function( a, b )
+			{
+				if( !( a instanceof Vector ) || !( b instanceof Vector ) )
+				{
+					return false;
+				}
+				
+				return a.x( ) * b.x( ) + a.y( ) * b.y( );
+			};
+			
+			Vector.lerp = function( a, b, percent )
+			{
+				if( !( a instanceof Vector ) || !( b instanceof Vector ) || a.size != b.size )
+				{
+					return false;
+				}
+				
+				var distance = Vector.subtract( b, a );
+				var point = Vector.multiply( distance, percent );
+				
+				return Vector.add( a, point );
+			};
+			
+			Vector.magnitude = function( a )
+			{
+				return Math.sqrt( Math.pow( a.x( ), 2 ) + Math.pow( a.y( ), 2 ) );
+			};
+			
+			Vector.multiply = function( a, b )
+			{
+				if( !( a instanceof Vector ) )
+				{
+					return false;
+				}
+				
+				if( b instanceof Matrix )
+				{
+					return Matrix.multiply( b, a );
+				}
+				else if( isNumeric( b ) )
+				{
+					return Vector.scale( a, b );
+				}
+			};
+			
+			Vector.normalize = function( a )
+			{
+				return Vector.divide( a, a.length( ) );
+			};
+			
+			Vector.rotate = function( a, angle )
+			{
+				return new Vector( a.x( ) * Math.cos( angle ) - a.y( ) * Math.sin( angle ), a.x( ) * Math.sin( angle ) + a.y( ) * Math.cos( angle ) );
+			};
+			
+			Vector.rotateDegrees = function( a, angle )
+			{
+				return Vector.rotate( a, Math.toRadians( angle ) );
+			};
+			
+			Vector.scale = function( a, b )
+			{
+				if( !( a instanceof Vector ) || !isNumeric( b ) )
+				{
+					return false;
+				}
+				
+				return new Vector( a.x( ) * b, a.y( ) * b );
+			};
+			
+			Vector.subtract = function( a, b )
+			{
+				if( !( a instanceof Vector ) )
+				{
+					return false;
+				}
+				
+				if( b instanceof Vector )
+				{
+					return new Vector( a.x( ) - b.x( ), a.y( ) - b.y( ) );
+				}
+				else
+				{
+					return new Vector( a.x( ) - b, a.y( ) - b );
+				}
+			};
+			
+			Vector.south = function( ) { return new Vector( 0, -1 ); }
+			Vector.west  = function( ) { return new Vector( -1, 0 ); }
+			Vector.east  = function( ) { return new Vector( 1, 0 ); }
+			Vector.north = function( ) { return new Vector( 0, 1 ); }
+			Vector.zero  = function( ) { return new Vector( 0, 0 ); }
+		</script>
+		
+		
+		<!-- TEST CASES -->
+		
+		<script type="text/javascript">
+			var s = 3;
+			var a = new Vector( 0, 0 );
+			var b = new Vector( 1, 3 );
+			var A = new Matrix( new Vector( 1, 2 ), new Vector( 3, 4 ) );
+			var B = new Matrix( new Vector( 1, -3 ), new Vector( 2, -4 ) );
+			
+			function Break( text )
+			{
+				var tester = document.getElementById( 'tests' );
+				tester.innerHTML += text + "\n";
+			}
+			
+			function Clear( )
+			{
+				document.getElementById( 'tests' ).innerHTML = "";
+			}
+			
+			function generateTests( )
+			{
+				Clear( );
+				
+				s = document.getElementById( 's' ).value;
+				a = new Vector( parseFloat( document.getElementById( 'a[0]' ).value ), parseFloat( document.getElementById( 'a[1]' ).value ) );
+				b = new Vector( parseFloat( document.getElementById( 'b[0]' ).value ), parseFloat( document.getElementById( 'b[1]' ).value ) );
+				A = new Matrix( new Vector( parseFloat( document.getElementById( 'A[0][0]' ).value ), parseFloat( document.getElementById( 'A[0][1]' ).value ) ), new Vector( parseFloat( document.getElementById( 'A[1][0]' ).value ), parseFloat( document.getElementById( 'A[1][1]' ).value ) ) );
+				B = new Matrix( new Vector( parseFloat( document.getElementById( 'B[0][0]' ).value ), parseFloat( document.getElementById( 'B[0][1]' ).value ) ), new Vector( parseFloat( document.getElementById( 'B[1][0]' ).value ), parseFloat( document.getElementById( 'B[1][1]' ).value ) ) );
+				
+				Break( "<h3>Variables</h3>" );
+				
+				Test( "s", "s" );
+				Test( "a", "a" );
+				Test( "b", "b" );
+				Test( "A", "A" );
+				Test( "B", "B" );
+				
+				Break( "<h3>Vector Operations</h3>" );
+
+				Test( "&#8214;a&#8214;", "Vector.magnitude(a)" );
+				Test( "&#8214;a&#8214;", "a.length()" );
+				Test( "&acirc;", "Vector.normalize(a)" );
+				Test( "&acirc;", "a.unit()" );
+				Test( "a &#8634; &pi;s rad", "Vector.rotate(a,Math.PI*s)" );
+				Test( "a &#8634; s&deg;", "Vector.rotateDegrees(a,s)" );
+				
+				Break( "<h3>Vector-Scalar Operations</h3>" );
+
+				Test( "a &#43; s", "Vector.add(a,s)" );
+				Test( "a &minus; s", "Vector.subtract(a,s)" );
+				Test( "a&#8599;<sup>s</sup>", "Vector.scale(a,s)" );
+				Test( "a &times; s", "Vector.multiply(a,s)" );
+				Test( "a &divide; s", "Vector.divide(a,s)" );
+
+				Break( "<h3>Vector-Vector Operations</h3>" );
+
+				Test( "<u>ab</u>", "Vector.distance(a,b)" );
+				Test( "a &#43; b", "Vector.add(a,b)" );
+				Test( "a &minus; b", "Vector.subtract(a,b)" );
+				Test( "a &middot; b", "Vector.dot(a,b)" );
+				Test( "a &times; b", "Vector.cross(a,b)" );
+				Test( "&fnof;(s&isin;{a,b})", "Vector.lerp(a,b,s)" );
+
+				Break( "<h3>Vector-Matrix Operations</h3>" );
+
+				Test( "a &times; B", "Vector.multiply(a,B)" );
+
+				Break( "<h3>Common Vectors</h3>" );
+
+				Test( "&uarr;", "Vector.north()" );
+				Test( "&rarr;", "Vector.east()" );
+				Test( "&darr;", "Vector.south()" );
+				Test( "&larr;", "Vector.west()" );
+				Test( "&Oslash;", "Vector.zero()" );
+
+				Break( "<h3>Matrix Operations</h3>" );
+
+				Test( "A<sub>0,x</sub>", "A.col(0)" );
+				Test( "A<sub>x,0</sub>", "A.row(0)" );
+				Test( "A<sub>1,x</sub>", "A.col(1)" );
+				Test( "A<sub>x,1</sub>", "A.row(1)" );
+				Test( "A<sup>T</sup>", "Matrix.transpose(A)" );
+
+				Break( "<h3>Matrix-Scalar Operations</h3>" );
+				
+				Test( "A &times; s", "Matrix.multiply(A,s)" );
+
+				Break( "<h3>Matrix-Vector Operations</h3>" );
+
+				Test( "A &times; b", "Matrix.multiply(A,b)" );
+
+				Break( "<h3>Matrix-Matrix Operations</h3>" );
+
+				Test( "A &#43; B", "Matrix.add(A,B)" );
+				Test( "A &minus; B", "Matrix.subtract(A,B)" );
+
+				Break( "<h3>Common Matrices</h3>" );
+
+				Test( "I<sub>2</sub>", "Matrix.identity()" );
+				Test( "I<sub>3</sub>", "Matrix.identity(3)" );
+				Test( "&#8634;R(&pi;s rad)", "Matrix.rotation(Math.PI*s)" );
+				Test( "&#8634;R(s&deg;)", "Matrix.rotationDegrees(s)" );
+				Test( "&#8599;S(s)", "Matrix.scale(s)" );
+				Test( "&rarr;T(a)", "Matrix.translation(a)" );
+			}
+			
+			function Test( human, code, result )
+			{
+				var output = "<strong>" + human + "</strong> = ";
+				
+				if( code != human )
+				{
+					output += "<em>" + code + "</em> = ";
+				}
+				
+				output += eval( code );
+				
+				var tester = document.getElementById[ 'tests' ];
+				tests.innerHTML += output + "\n";
+			}
+			
+			var _gaq = _gaq || [];
+			_gaq.push(['_setAccount', 'UA-2411800-14']);
+			_gaq.push(['_trackPageview']);
+			
+			( function( ) {
+				var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+				ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+				var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+			} )( );
+		</script>
+		
+		<style type="text/css">
+
+			body
+			{
+				font-family: 'Courier New', fixed;
+
+				font-size: 11pt;
+				line-height: 1.33em;
+				margin: 0;
+				padding-top: 11.5em;
+			}
+			
+			em
+			{
+				color: rgb( 133, 150, 133 );
+			}
+			
+			h3
+			{
+				margin: 1em 0 0;
+			}
+			
+			header
+			{
+				background: rgb( 255, 255, 255 );
+				border-bottom: solid 1px rgb( 213, 213, 213 );
+				box-shadow: 0 0 10px rgba( 0, 0, 0, 0.5 );
+				display: block;
+				height: 11.5em;
+				padding: 1em;
+				position: fixed;
+				top: 0;
+				width: 100%;
+			}
+			
+			header h3
+			{
+				margin: 0;
+			}
+			
+			input
+			{
+				border: solid 1px rgb( 213, 213, 213 );
+				font: inherit;
+				text-align: center;
+				width: 3em;
+			}
+			
+			pre
+			{
+				font-family: 'Courier New', fixed;
+
+				padding: 1em;
+			}
+			
+			sub, sup
+			{
+				font-size: 7pt;
+			}
+		</style>
+	</head>
+	
+	<body onload="generateTests( );">
+		<header>
+			<h3>Test Variables</h3>
+			<strong>s</strong> = <input id="s" value="3" /><br />
+			<strong>a</strong> = Vector(<input id="a[0]" value="1" />,<input id="a[1]" value="-2" />)<br />
+			<strong>b</strong> = Vector(<input id="b[0]" value="-3" />,<input id="b[1]" value="4" />)<br />
+			<strong>A</strong> = Matrix([<input id="A[0][0]" value="1" />,<input id="A[0][1]" value="-2" />],[<input id="A[1][0]" value="-3" />,<input id="A[1][1]" value="4" />])<br />
+			<strong>B</strong> = Matrix([<input id="B[0][0]" value="-1" />,<input id="B[0][1]" value="3" />],[<input id="B[1][0]" value="2" />,<input id="B[1][1]" value="-4" />])<br />
+			<button onclick="generateTests( )">Test</button>
+		</header>
+		
+		<pre id="tests"></pre>
+	</body>
+</html>
